@@ -1,0 +1,25 @@
+[project]
+name = "diploma"
+version = "0.1.0"
+description = "Work dir to my diploma-paper in MSU"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "logging>=0.4.9.6",
+    "matplotlib>=3.10.0",
+    "numpy>=2.2.2",
+    "pandas>=2.2.3",
+    "path>=17.1.0",
+    "plotly>=5.24.1",
+    "requests>=2.32.3",
+    "ruff>=0.9.3",
+    "seaborn>=0.13.2",
+    "tqdm>=4.67.1",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.9.3"]
+
+
+[tool.ruff]
+line-length = 120

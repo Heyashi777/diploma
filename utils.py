@@ -45,3 +45,16 @@ def setup_logger_writer(log_path: str | Path) -> logging.Logger:
         logger.addHandler(file_handler)
 
     return logger
+
+
+def generate_half_year_dates(df: pd.DataFrame) -> list:
+    """
+    Генерирует список дат по полугодиям в диапазоне MIN_DATE - MAX_DATE.
+
+    :param df: pandas DataFrame с датами в индексе
+    :return: список дат с шагом в полгода
+    """
+    min_date = df.index.min()
+    max_date = df.index.max()
+
+    return pd.date_range(start=min_date, end=max_date, freq="6M").tolist()

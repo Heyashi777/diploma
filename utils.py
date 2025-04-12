@@ -7,7 +7,7 @@ pd.set_option("display.width", 50)
 pd.set_option("display.max_colwidth", None)
 
 
-def get_unique_names_stoks() -> list[str]:
+def get_unique_names_stocks() -> list[str]:
     """
     Функция, которая берёт файл с данными о доступных котировках с биржи MOEX и возвращает лист с уникальными тикерами
 
@@ -47,7 +47,7 @@ def setup_logger_writer(log_path: str | Path) -> logging.Logger:
     return logger
 
 
-def generate_half_year_dates(df: pd.DataFrame) -> list:
+def generate_half_year_dates(df: pd.DataFrame) -> list[pd.Timestamp]:
     """
     Генерирует список дат по полугодиям в диапазоне MIN_DATE - MAX_DATE.
 

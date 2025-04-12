@@ -1,4 +1,4 @@
-from utils import get_unique_names_stoks, save_csv, setup_logger_writer
+from utils import get_unique_names_stocks, save_csv, setup_logger_writer
 import requests
 import pandas as pd
 from tqdm import tqdm
@@ -9,11 +9,11 @@ DATA_DIR = BASE_DIR / "data" / "stoks_data"
 LOG_DIR = BASE_DIR / "loggers"
 
 
-def get_stoks_data() -> str | None:
+def get_stocks_data() -> str | None:
     logger = setup_logger_writer(LOG_DIR / "get_stonks.log")
     logger.info("#" * 20)
     try:
-        list_names = get_unique_names_stoks()
+        list_names = get_unique_names_stocks()
         logger.info("Successfully fetched unique stock names")
     except Exception as e:
         logger.error(f"ERROR: {e}")
@@ -45,4 +45,4 @@ def get_stoks_data() -> str | None:
     logger.info("END ETL PROC")
 
 
-get_stoks_data()
+get_stocks_data()

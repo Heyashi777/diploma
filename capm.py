@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from collections import namedtuple
+import statsmodels.api as sm
 
 from utils import generate_half_year_dates
 
@@ -13,25 +14,35 @@ pd.set_option("display.max_colwidth", None)
 Model = namedtuple("Model", ["year", "name", "beta", "alfa", "returns"])
 
 
-def capm_model(data: pd.DataFrame, market_name: str, stock_name: str, plot: bool = False) -> dict:
+def capm_model(data: pd.DataFrame, market_name: str, stock_name: str, rf: float, plot: bool = False) -> dict:
+    N = 252
+    Rf_daily = np.log(1 + rf) / N
     capm_data = data[[stock_name, market_name]].copy()
-    beta = (capm_data.cov() / capm_data[market_name].var()).iloc[0].iloc[1]  # type: ignore
     capm_data.dropna(inplace=True)
-    beta_reg, alpha = np.polyfit(x=capm_data[market_name], y=capm_data[stock_name], deg=1)
+    capm_data["X"] = capm_data[market_name] - Rf_daily
+    capm_data["Y"] = capm_data[stock_name] - Rf_daily
+    X = sm.add_constant(capm_data["X"])
+    y = capm_data["Y"]
+    capm_model = sm.OLS(y, X).fit()
     result = {}
     result["stock_name"] = stock_name
-    result["beta"] = beta
-    result["beta_reg"] = beta_reg
-    result["alpha"] = alpha
+    result["beta_reg"] = capm_model.params.iloc[1]
+    result["alpha"] = capm_model.params.iloc[0]
     moex_returns = capm_data["MOEX"].mean()
-    stock_returns = 0.09 + beta_reg * (moex_returns - 0.09)
+    stock_returns = 0.09 + capm_model.params.iloc[1] * (moex_returns - 0.09)
     result["returns"] = stock_returns
+    result["capm_model"] = capm_model
     if plot is True:
         plt.figure(figsize=(13, 9))
         plt.axvline(0, color="grey", alpha=0.5)
         plt.axhline(0, color="grey", alpha=0.5)
         sns.scatterplot(y=stock_name, x=market_name, data=capm_data, label="Returns")
-        sns.lineplot(x=capm_data["MOEX"], y=alpha + capm_data["MOEX"] * beta_reg, color="red", label="CAPM Line")
+        sns.lineplot(
+            x=capm_data["MOEX"],
+            y=capm_model.params.iloc[0] + capm_data["MOEX"] * capm_model.params.iloc[1],
+            color="red",
+            label="CAPM Line",
+        )
         plt.xlabel("Market Monthly Return: {market_name}")
         plt.ylabel("Investment Monthly Return: {stock_name}")
         plt.legend(bbox_to_anchor=(1.01, 0.8), loc=2, borderaxespad=0.0)
@@ -53,6 +64,33 @@ periods = generate_half_year_dates(train_data)
 stocks = data.columns.to_list()[:-1]
 step = 0
 
+central_bank_rf = [
+    5.5,
+    8,
+    17,
+    11.5,
+    11,
+    10.5,
+    10,
+    9,
+    7.75,
+    7.25,
+    7.75,
+    7.5,
+    6.25,
+    4.25,
+    4.25,
+    5.5,
+    8.5,
+    9.5,
+    8.5,
+    12,
+    16,
+    16,
+]
+for i in range(len(central_bank_rf)):
+    central_bank_rf[i] = central_bank_rf[i] / 100
+
 capm_data = []
 
 for stock in stocks:
@@ -61,11 +99,13 @@ for stock in stocks:
         continue
     if stock not in stock_data.columns or "MOEX" not in stock_data.columns:
         continue
-    capm = capm_model(data=stock_data, market_name="MOEX", stock_name=stock)
-    stock_capm = Model("2013", stock, capm["beta"], capm["alpha"], capm["returns"])
+    capm = capm_model(data=stock_data, market_name="MOEX", stock_name=stock, rf=0.09)
+    stock_capm = Model("2013", stock, capm["beta_reg"], capm["alpha"], capm["returns"])
     capm_data.append(stock_capm)
 
+i = -1
 for per in periods:
+    i += 1
     stop = per + pd.DateOffset(months=6)
     period_data = train_data[(train_data.index >= per) & (train_data.index < stop)].copy()
     for stock in stocks:
@@ -77,10 +117,14 @@ for per in periods:
         if stock_data.dropna().empty:
             print(f"⚠ Период {per} - {stop} пуст, пропускаем.")
             continue
-        capm = capm_model(data=stock_data, market_name="MOEX", stock_name=stock)
+        capm = capm_model(data=stock_data, market_name="MOEX", stock_name=stock, rf=central_bank_rf[i])
+        # print(stock)
+        # print("Parameters: ", capm["capm_model"].params.iloc[1])
+        # print("R2: ", capm["capm_model"].rsquared)
         stock_capm = Model(per, stock, capm["beta_reg"], capm["alpha"], capm["returns"])
         capm_data.append(stock_capm)
 
 # print(capm_data)
 capm_data_frame = pd.DataFrame(capm_data)
 capm_data_frame.to_csv("data/capm_data.csv", index=False)
+# print(capm_data_frame[capm_data_frame["beta"] > 0.8])

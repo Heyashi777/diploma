@@ -13,7 +13,8 @@ def portfolio_volatility(weights):
 Portfel = namedtuple("Portfel", ["period", "beta", "future_income", "fact_income", "moex_income"])
 
 capm_data = pd.read_csv("data/capm_data.csv", parse_dates=["year"], index_col="year")
-data_moex = pd.read_csv("data/returns_of_stok.csv", index_col="TRADEDATE", parse_dates=["TRADEDATE"])
+# data_moex = pd.read_csv("data/returns_of_stok.csv", index_col="TRADEDATE", parse_dates=["TRADEDATE"])
+data_moex = pd.read_csv("data/MOEX.csv", index_col="TRADEDATE", parse_dates=["TRADEDATE"])
 # capm_data = capm_data[(capm_data.index >= "2014-01-01 00:00:00")]
 # data_moex = data_moex[data_moex.index >= "2014-01-01 00:00:00"]
 capm_data.index = pd.to_datetime(capm_data.index)
@@ -23,7 +24,7 @@ periods = generate_half_year_dates(capm_data)
 result = []
 
 i = 0
-for per in periods:
+for per in periods[1:]:
     stop = per + pd.DateOffset(months=6)
     tarin_data = capm_data[(capm_data.index >= per) & (capm_data.index < stop)].copy()
     tarin_data = tarin_data[(tarin_data["returns"] >= 0)]  # (tarin_data["beta"] >= 0) &
@@ -73,19 +74,16 @@ for per in periods:
     sub_result = Portfel(
         per + pd.DateOffset(months=6),
         beta_portfolio,  # noqa: F821
-        # expected_return * 100,  # noqa: F821
-        # income["income"].mean() * 100,
-        # moex["MOEX"].mean() * 100,
         (np.exp(income["income"].mean()) - 1) * 100,
         (np.exp(expected_return) - 1) * 100,
-        (np.exp(moex["MOEX"].mean()) - 1) * 100,
+        (np.exp(moex["return"].mean()) - 1) * 100,
     )  # noqa: F821
     result.append(sub_result)
     i += 1
-    # weights_data = tarin_data
+    print(len(tarin_data))
 
 for item in result:
     print(item)
 
 portfels = pd.DataFrame(result)
-portfels.to_csv("data/portfels.csv", index=False)
+# portfels.to_csv("data/portfels.csv", index=False)

@@ -14,21 +14,22 @@ pd.set_option("display.max_colwidth", None)
 Model = namedtuple("Model", ["year", "name", "beta", "alfa", "returns"])
 
 
-def capm_model(data: pd.DataFrame, market_name: str, stock_name: str, rf: float, plot: bool = False) -> dict:
+def capm_model(data: pd.DataFrame, MOEX: pd.DataFrame, stock_name: str, rf: float, plot: bool = False) -> dict:
     N = 252
     Rf_daily = np.log(1 + rf) / N
-    capm_data = data[[stock_name, market_name]].copy()
+    capm_data = data[[stock_name, "MOEX"]].copy()
     capm_data.dropna(inplace=True)
-    capm_data["X"] = capm_data[market_name] - Rf_daily
+    capm_data["X"] = MOEX["return"] - Rf_daily
     capm_data["Y"] = capm_data[stock_name] - Rf_daily
     X = sm.add_constant(capm_data["X"])
+    X = X.fillna(0)  # type: ignore
     y = capm_data["Y"]
     capm_model = sm.OLS(y, X).fit()
     result = {}
     result["stock_name"] = stock_name
     result["beta_reg"] = capm_model.params.iloc[1]
     result["alpha"] = capm_model.params.iloc[0]
-    moex_returns = capm_data["MOEX"].mean()
+    moex_returns = MOEX["return"].mean()
     stock_returns = 0.09 + capm_model.params.iloc[1] * (moex_returns - 0.09)
     result["returns"] = stock_returns
     result["capm_model"] = capm_model
@@ -36,10 +37,10 @@ def capm_model(data: pd.DataFrame, market_name: str, stock_name: str, rf: float,
         plt.figure(figsize=(13, 9))
         plt.axvline(0, color="grey", alpha=0.5)
         plt.axhline(0, color="grey", alpha=0.5)
-        sns.scatterplot(y=stock_name, x=market_name, data=capm_data, label="Returns")
+        sns.scatterplot(y=stock_name, x="MOEX", data=capm_data, label="Returns")
         sns.lineplot(
-            x=capm_data["MOEX"],
-            y=capm_model.params.iloc[0] + capm_data["MOEX"] * capm_model.params.iloc[1],
+            x=MOEX["return"],
+            y=capm_model.params.iloc[0] + MOEX["return"] * capm_model.params.iloc[1],
             color="red",
             label="CAPM Line",
         )
@@ -58,8 +59,14 @@ def create_data_set_for_period(df: pd.DataFrame, start_date: str) -> pd.DataFram
 
 
 data = pd.read_csv("data/returns_of_stok.csv", index_col="TRADEDATE", parse_dates=["TRADEDATE"])
+MOEX = pd.read_csv("data/MOEX.csv", index_col="TRADEDATE", parse_dates=["TRADEDATE"])
+
 train_data = data[data.index >= "2014-01-01 00:00:00"]
 pred_data = data[data.index < "2014-01-01 00:00:00"]
+
+train_data_MOEX = MOEX[MOEX.index >= "2014-01-01 00:00:00"]
+pred_data_MOEX = MOEX[MOEX.index < "2014-01-01 00:00:00"]
+
 periods = generate_half_year_dates(train_data)
 stocks = data.columns.to_list()[:-1]
 step = 0
@@ -95,11 +102,12 @@ capm_data = []
 
 for stock in stocks:
     stock_data = pred_data[[stock, "MOEX"]].copy()
+    MOEX_ = pred_data_MOEX
     if stock_data[stock].dropna().empty:
         continue
-    if stock not in stock_data.columns or "MOEX" not in stock_data.columns:
+    if stock not in stock_data.columns:
         continue
-    capm = capm_model(data=stock_data, market_name="MOEX", stock_name=stock, rf=0.09)
+    capm = capm_model(data=stock_data, MOEX=MOEX_, stock_name=stock, rf=0.09)
     stock_capm = Model("2013", stock, capm["beta_reg"], capm["alpha"], capm["returns"])
     capm_data.append(stock_capm)
 
@@ -108,6 +116,7 @@ for per in periods:
     i += 1
     stop = per + pd.DateOffset(months=6)
     period_data = train_data[(train_data.index >= per) & (train_data.index < stop)].copy()
+    period_data_MOEX = train_data_MOEX[(train_data_MOEX.index >= per) & (train_data_MOEX.index < stop)].copy()
     for stock in stocks:
         stock_data = period_data[[stock, "MOEX"]].copy()
         if period_data.empty:
@@ -117,7 +126,7 @@ for per in periods:
         if stock_data.dropna().empty:
             print(f"⚠ Период {per} - {stop} пуст, пропускаем.")
             continue
-        capm = capm_model(data=stock_data, market_name="MOEX", stock_name=stock, rf=central_bank_rf[i])
+        capm = capm_model(data=stock_data, MOEX=period_data_MOEX, stock_name=stock, rf=central_bank_rf[i])
         # print(stock)
         # print("Parameters: ", capm["capm_model"].params.iloc[1])
         # print("R2: ", capm["capm_model"].rsquared)
